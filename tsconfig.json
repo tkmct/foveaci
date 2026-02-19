@@ -14,5 +14,5 @@
     "resolveJsonModule": true
   },
   "include": ["bin/**/*.ts", "src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "artifacts", "examples"]
+  "exclude": ["node_modules", "dist", "artifacts", "examples", "report-ui"]
 }

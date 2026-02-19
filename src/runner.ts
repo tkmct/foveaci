@@ -34,7 +34,7 @@ export interface SessionResult {
   retried?: boolean;
 }
 
-interface StepResult {
+export interface StepResult {
   kind: string;
   success: boolean;
   timeMs: number;

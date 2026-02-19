@@ -7,7 +7,8 @@
     "fov": "./dist/bin/fov.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build:report-ui": "cd report-ui && npm install && npm run build && cp -r dist/* ../src/report/static/",
+    "build": "npm run build:report-ui && tsc && cp -r src/report/static dist/src/report/static",
     "fov": "node ./dist/bin/fov.js"
   },
   "dependencies": {
