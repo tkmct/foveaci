@@ -1,0 +1,24 @@
+{
+  "name": "foveaci",
+  "version": "0.1.0",
+  "description": "Synthetic User Swarm FoveaCI Tool",
+  "type": "module",
+  "bin": {
+    "fov": "./dist/bin/fov.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "fov": "node ./dist/bin/fov.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0",
+    "playwright": "^1.49.0",
+    "rrweb": "^2.0.0-alpha.18"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

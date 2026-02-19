@@ -1,0 +1,52 @@
+project:
+  name: "miniapp"
+  baseUrl: "http://localhost:3456"
+
+run:
+  browser: "chromium"
+  headless: true
+  video: false
+  trace: false
+  concurrency: 1
+  timeoutMs: 60000
+
+recording:
+  rrweb: true
+  maskInputs: true
+  fakeCursor: true
+
+personas:
+  - id: "normal_user"
+    speed: 1.0
+    jitterPx: 2.0
+    misclickRate: 0.02
+    typoRate: 0.02
+    patienceMs: 3000
+
+tasks:
+  - id: "signup"
+    entry: "/"
+    goal: "Sign up and reach the dashboard"
+    steps:
+      - kind: "click"
+        target: { role: "button", name: "Sign up" }
+      - kind: "type"
+        target: { label: "Email" }
+        value: "test+{{runId}}@example.com"
+      - kind: "type"
+        target: { label: "Password" }
+        value: "Passw0rd!{{runId}}"
+      - kind: "click"
+        target: { role: "button", name: "Create account" }
+      - kind: "wait"
+        value: "1500"
+      - kind: "expect"
+        target: { text: "Dashboard" }
+
+gates:
+  - metric: "taskSuccessRate"
+    op: ">="
+    value: 0.95
+  - metric: "medianTaskTimeMs"
+    op: "<="
+    value: 45000
