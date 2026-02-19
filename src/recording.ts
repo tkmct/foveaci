@@ -144,9 +144,9 @@ function getRrwebRecordScript(maskInputs: boolean): string {
       for (const attr of el.attributes) {
         attrs[attr.name] = attr.value;
       }
-      // Mask input values
+      // Mask input values (length-preserving)
       if (${maskInputs} && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-        if (attrs.value) attrs.value = '***';
+        if (attrs.value) attrs.value = '*'.repeat(attrs.value.length);
         if (attrs.placeholder) attrs.placeholder = attrs.placeholder; // keep placeholder
       }
       const childNodes = [];
@@ -265,7 +265,7 @@ function getRrwebRecordScript(maskInputs: boolean): string {
   document.addEventListener('input', (e) => {
     const target = e.target;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
-      const value = ${maskInputs} ? '***' : (target.value || '');
+      const value = ${maskInputs} ? '*'.repeat((target.value || '').length) : (target.value || '');
       pushEvent({
         type: EventType.IncrementalSnapshot,
         data: { source: IncrementalSource.Input, text: value, isChecked: target.checked || false, id: getNodeId(target) },
@@ -307,14 +307,14 @@ function getRrwebRecordScript(maskInputs: boolean): string {
         let value = el.getAttribute(m.attributeName) || '';
         // Mask values
         if (${maskInputs} && m.attributeName === 'value' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-          value = '***';
+          value = '*'.repeat(value.length);
         }
         attrs.push({ id: getNodeId(m.target), attributes: { [m.attributeName]: value } });
       } else if (m.type === 'characterData') {
         let val = m.target.textContent || '';
         if (${maskInputs} && m.target.parentElement) {
           const tag = m.target.parentElement.tagName.toLowerCase();
-          if (tag === 'input' || tag === 'textarea') val = '***';
+          if (tag === 'input' || tag === 'textarea') val = '*'.repeat(val.length);
         }
         texts.push({ id: getNodeId(m.target), value: val });
       }
