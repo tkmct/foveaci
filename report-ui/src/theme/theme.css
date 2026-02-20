@@ -403,13 +403,16 @@ body {
 .replay-container {
   position: relative;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--main-bg);
 }
 .replay-container .replayer-wrapper {
   transform-origin: top left;
+  flex-shrink: 0;
 }
 
 /* Controls */

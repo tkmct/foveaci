@@ -20,10 +20,14 @@ export function useViewportScale(
 
     const cw = container.offsetWidth;
     const ch = container.offsetHeight;
-    const s = Math.min(cw / viewportWidth, ch / viewportHeight);
+    // Never scale beyond 1 — replay should not exceed its recorded size
+    const s = Math.min(cw / viewportWidth, ch / viewportHeight, 1);
 
     wrapper.style.transform = `scale(${s})`;
     wrapper.style.transformOrigin = "top left";
+    // Set explicit dimensions on the container so CSS can center the scaled replay
+    wrapper.style.width = `${viewportWidth}px`;
+    wrapper.style.height = `${viewportHeight}px`;
   }, [containerRef]);
 
   useEffect(() => {

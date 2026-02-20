@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { Replayer } from "rrweb";
 import type { eventWithTime } from "rrweb";
 
@@ -10,6 +10,53 @@ export interface ReplayEngine {
   currentTime: number;
   duration: number;
   playing: boolean;
+}
+
+/**
+ * rrweb v2 alpha stores CSS in `_cssText` attributes on <style> snapshot
+ * nodes but leaves their text node children empty. The Replayer then
+ * renders <style _csstext="..."></style> with no actual CSS rules.
+ *
+ * Fix: deep-clone the events and copy `_cssText` into the child text node
+ * so the Replayer applies styles correctly.
+ */
+interface SnapshotNode {
+  type: number;
+  tagName?: string;
+  attributes?: Record<string, string>;
+  textContent?: string;
+  childNodes?: SnapshotNode[];
+}
+
+function patchCssTextInNode(node: SnapshotNode): void {
+  if (
+    node.tagName === "style" &&
+    node.attributes?._cssText &&
+    node.childNodes
+  ) {
+    const textChild = node.childNodes.find((c) => c.type === 3);
+    if (textChild && !textChild.textContent) {
+      textChild.textContent = node.attributes._cssText;
+    }
+  }
+  if (node.childNodes) {
+    for (const child of node.childNodes) {
+      patchCssTextInNode(child);
+    }
+  }
+}
+
+function patchEvents(events: unknown[]): unknown[] {
+  return events.map((e) => {
+    const ev = e as { type: number; data?: { node?: SnapshotNode } };
+    // type 2 = FullSnapshot
+    if (ev.type === 2 && ev.data?.node) {
+      const patched = JSON.parse(JSON.stringify(ev));
+      patchCssTextInNode(patched.data.node);
+      return patched;
+    }
+    return ev;
+  });
 }
 
 export function useReplayEngine(
@@ -24,6 +71,8 @@ export function useReplayEngine(
   const rafRef = useRef(0);
   const playingRef = useRef(false);
 
+  const patchedEvents = useMemo(() => patchEvents(events), [events]);
+
   // Sync playing ref for rAF loop
   useEffect(() => {
     playingRef.current = playing;
@@ -32,7 +81,7 @@ export function useReplayEngine(
   // Create replayer when events or container change
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || events.length === 0) return;
+    if (!container || patchedEvents.length === 0) return;
 
     // Clean up previous instance
     if (replayerRef.current) {
@@ -44,7 +93,7 @@ export function useReplayEngine(
       rafRef.current = 0;
     }
 
-    const replayer = new Replayer(events as eventWithTime[], {
+    const replayer = new Replayer(patchedEvents as eventWithTime[], {
       root: container,
       speed: 1,
     });
@@ -65,7 +114,7 @@ export function useReplayEngine(
       replayer.destroy();
       replayerRef.current = null;
     };
-  }, [events, containerRef]);
+  }, [patchedEvents, containerRef]);
 
   // rAF poll loop to update currentTime while playing
   const startPolling = useCallback(() => {

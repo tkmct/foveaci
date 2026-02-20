@@ -10,6 +10,7 @@ import type {
 } from "./config.js";
 import {
   injectRecording,
+  activateRrweb,
   collectRrwebEvents,
   collectConsoleLogs,
   collectNetworkLogs,
@@ -39,6 +40,11 @@ export interface StepResult {
   success: boolean;
   timeMs: number;
   error?: string;
+}
+
+interface MousePos {
+  x: number;
+  y: number;
 }
 
 interface ClickTracker {
@@ -85,6 +91,7 @@ async function executeStep(
   persona: PersonaConfig,
   runId: string,
   clickTracker: ClickTracker,
+  mousePos: MousePos,
   rng: () => number
 ): Promise<StepResult> {
   const start = Date.now();
@@ -123,12 +130,15 @@ async function executeStep(
 
         // Check for misclick
         if (rng() < persona.misclickRate) {
-          // Import misclick
           const { misclick } = await import("./behavior/mouse.js");
-          await misclick(page, center, persona, undefined, rng);
+          const missPoint = await misclick(page, center, persona, mousePos, rng);
+          mousePos.x = missPoint.x;
+          mousePos.y = missPoint.y;
         }
 
-        await humanClick(page, center, persona, undefined, rng);
+        await humanClick(page, center, persona, mousePos, rng);
+        mousePos.x = center.x;
+        mousePos.y = center.y;
         return { kind: "click", success: true, timeMs: Date.now() - start };
       }
 
@@ -141,7 +151,9 @@ async function executeStep(
         // Click to focus
         const center = await getElementCenter(page, locator);
         if (center) {
-          await humanClick(page, center, persona, undefined, rng);
+          await humanClick(page, center, persona, mousePos, rng);
+          mousePos.x = center.x;
+          mousePos.y = center.y;
         } else {
           await locator.click();
         }
@@ -270,6 +282,9 @@ async function runSession(
     totalRageClicks: 0,
   };
 
+  // Track mouse position across steps so cursor doesn't jump to (0,0)
+  const mousePos: MousePos = { x: 640, y: 360 };
+
   try {
     // Navigate to entry
     const entryUrl = new URL(task.entry, config.project.baseUrl).href;
@@ -277,6 +292,9 @@ async function runSession(
       waitUntil: "domcontentloaded",
       timeout: config.run.timeoutMs,
     });
+
+    // Activate rrweb recording now that the DOM exists
+    await activateRrweb(page, config.recording);
 
     // Wait for page to settle
     await page.waitForTimeout(500);
@@ -292,7 +310,7 @@ async function runSession(
           : 300 + rng() * 500) / persona.speed;
       await page.waitForTimeout(hesitation);
 
-      const result = await executeStep(page, step, persona, runId, clickTracker, rng);
+      const result = await executeStep(page, step, persona, runId, clickTracker, mousePos, rng);
       stepResults.push(result);
 
       if (!result.success) {

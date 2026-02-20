@@ -10,17 +10,31 @@ const rrwebMainPath = require.resolve("rrweb");
 const rrwebUmdPath = path.join(path.dirname(rrwebMainPath), "rrweb.umd.cjs");
 const rrwebSource = fs.readFileSync(rrwebUmdPath, "utf-8");
 
-/** Inject rrweb recorder and fake cursor into the page */
+const RRWEB_ROUTE_PATTERN = "**/_fov/rrweb.js";
+const RRWEB_SCRIPT_URL = "/_fov/rrweb.js";
+
+/**
+ * Prepare recording infrastructure on the page.
+ *
+ * Sets up small addInitScript for event arrays / console / network capture,
+ * and a route to serve the large rrweb bundle. rrweb itself is activated
+ * later via activateRrweb() after the page has navigated.
+ */
 export async function injectRecording(
   page: Page,
   config: RecordingConfig
 ): Promise<void> {
-  // Inject rrweb recorder via addInitScript
   if (config.rrweb) {
-    const bootstrap = getBootstrapScript(config.maskInputs);
-    await page.addInitScript({
-      content: rrwebSource + "\n" + bootstrap,
-    });
+    // Serve the large rrweb bundle via route interception
+    await page.route(RRWEB_ROUTE_PATTERN, (route) =>
+      route.fulfill({
+        contentType: "application/javascript",
+        body: rrwebSource,
+      })
+    );
+
+    // Small init script: only sets up event arrays and console/network capture
+    await page.addInitScript({ content: getArrayInitScript() });
   }
 
   // Inject fake cursor
@@ -29,7 +43,42 @@ export async function injectRecording(
   }
 }
 
-/** After page navigation, ensure scripts are active and retrieve events */
+/**
+ * Activate rrweb recording after navigation.
+ *
+ * Must be called after page.goto() so the DOM exists.
+ * Loads rrweb via addScriptTag (fetched from the routed URL)
+ * then starts recording.
+ */
+export async function activateRrweb(
+  page: Page,
+  config: RecordingConfig
+): Promise<void> {
+  if (!config.rrweb) return;
+
+  // Load rrweb from the routed URL — fetched by the browser, no large
+  // DevTools protocol messages
+  await page.addScriptTag({ url: RRWEB_SCRIPT_URL });
+
+  // Start recording
+  await page.evaluate((maskInputs: boolean) => {
+    const w = window as unknown as {
+      rrweb?: { record: (opts: unknown) => void };
+      __fov_rrweb_events: unknown[];
+    };
+    if (w.rrweb && w.rrweb.record) {
+      w.rrweb.record({
+        emit(event: unknown) {
+          w.__fov_rrweb_events.push(event);
+        },
+        maskAllInputs: maskInputs,
+        blockSelector: "#fov-cursor",
+      });
+    }
+  }, config.maskInputs);
+}
+
+/** After page navigation, retrieve recorded rrweb events */
 export async function collectRrwebEvents(page: Page): Promise<unknown[]> {
   try {
     const events = await page.evaluate(() => {
@@ -66,7 +115,8 @@ export async function collectNetworkLogs(page: Page): Promise<unknown[]> {
   }
 }
 
-function getBootstrapScript(maskInputs: boolean): string {
+/** Small init script that only sets up event arrays and capture hooks */
+function getArrayInitScript(): string {
   return `
 (function() {
   window.__fov_rrweb_events = window.__fov_rrweb_events || [];
@@ -108,17 +158,6 @@ function getBootstrapScript(maskInputs: boolean): string {
       });
       observer.observe({ entryTypes: ['resource'] });
     } catch(e) {}
-  }
-
-  // Start rrweb recording
-  if (typeof rrweb !== 'undefined' && rrweb.record) {
-    rrweb.record({
-      emit: function(event) {
-        window.__fov_rrweb_events.push(event);
-      },
-      maskAllInputs: ${maskInputs},
-      blockSelector: '#fov-cursor',
-    });
   }
 })();
 `;
