@@ -71,7 +71,7 @@ jobs:
             --preview-file ./artifacts/pr-discovery/scenario-preview.md \
             --pr-metadata ./artifacts/pr.json \
             --artifact-name "pr-ux-eval-${{ github.event.pull_request.number }}" \
-            --local-serve-cmd "node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173" \
+            --local-serve-cmd "node <foveaci_root>/dist/bin/fov.js serve-report --dir <artifact_root>/artifacts/pr-eval/report --port 4173" \
             --local-open-cmd "http://localhost:4173/index.html" \
             --output ./artifacts/pr-comment.md
 
@@ -119,7 +119,7 @@ jobs:
             --pr-metadata ./artifacts/pr.json \
             --candidate-dir ./artifacts/pr-eval \
             --artifact-name "pr-ux-eval-${{ github.event.pull_request.number }}" \
-            --local-serve-cmd "node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173" \
+            --local-serve-cmd "node <foveaci_root>/dist/bin/fov.js serve-report --dir <artifact_root>/artifacts/pr-eval/report --port 4173" \
             --local-open-cmd "http://localhost:4173/index.html" \
             --output ./artifacts/pr-comment.md
 
