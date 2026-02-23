@@ -44,6 +44,38 @@ export function AdvisorPanel({ advisor, onSelectSession }: AdvisorPanelProps) {
         ))}
       </div>
 
+      {advisor.topSuggestions && advisor.topSuggestions.length > 0 && (
+        <div className="advisor-content active">
+          <div className="verification-label">Top Suggestions (PR-focused)</div>
+          {advisor.topSuggestions.slice(0, 3).map((s) => (
+            <div key={`${s.rank}-${s.title}`} className="suggestion-item">
+              <div className="suggestion-title">
+                #{s.rank} {s.title}
+                <span className={`impact-badge impact-${s.expectedImpact}`}>
+                  Impact: {s.expectedImpact}
+                </span>
+              </div>
+              <div className="suggestion-description">{s.description}</div>
+              <div className="suggestion-impl">
+                <strong>Priority:</strong> {s.priorityScore.toFixed(2)} /{" "}
+                <strong>Why:</strong> {s.rationale}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {advisor.context?.focusAreas && advisor.context.focusAreas.length > 0 && (
+        <div className="advisor-content active">
+          <div className="verification-label">Focus Areas</div>
+          <div className="verification-text">
+            {advisor.context.focusAreas
+              .map((area) => `${area.title}${area.entry ? ` (${area.entry})` : ""}`)
+              .join(", ")}
+          </div>
+        </div>
+      )}
+
       {activeTab === "findings" && (
         <div className="advisor-content active">
           {advisor.findings.length > 0 ? (

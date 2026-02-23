@@ -80,6 +80,21 @@ export interface Suggestion {
   implementation?: string;
 }
 
+export interface PrioritizedSuggestion extends Suggestion {
+  rank: number;
+  priorityScore: number;
+  rationale: string;
+  relatedFocusAreas: string[];
+}
+
+export interface AdvisorFocusArea {
+  id: string;
+  title: string;
+  entry?: string;
+  tags?: string[];
+  confidence?: number;
+}
+
 export interface Verification {
   method: string;
   expectedOutcome: string;
@@ -97,6 +112,10 @@ export interface AdvisorReport {
   findings: Finding[];
   hypotheses: Hypothesis[];
   suggestions: Suggestion[];
+  topSuggestions?: PrioritizedSuggestion[];
+  context?: {
+    focusAreas: AdvisorFocusArea[];
+  };
   verification: Verification[];
 }
 

@@ -1,0 +1,39 @@
+project:
+  name: "myapp-pr-eval"
+  baseUrl: "http://localhost:3000"
+
+run:
+  browser: "chromium"
+  headless: true
+  video: false
+  trace: false
+  concurrency: 1
+  timeoutMs: 60000
+  seed: 42
+
+recording:
+  rrweb: true
+  maskInputs: true
+  fakeCursor: true
+
+personas:
+  - id: "normal_user"
+    speed: 1.0
+    jitterPx: 2.0
+    misclickRate: 0.02
+    typoRate: 0.02
+    patienceMs: 3000
+
+# Placeholder task. In PR evaluation flow, tasks are replaced by approved auto-generated scenarios.
+tasks:
+  - id: "placeholder"
+    entry: "/"
+    goal: "Placeholder task for config validation"
+    steps:
+      - kind: "goto"
+        url: "/"
+      - kind: "wait"
+        value: "300"
+
+gates: []
+

@@ -55,21 +55,41 @@ xdg-open ./artifacts/run1/report/index.html  # Linux
 ## CLI
 
 ```
-fov run --config <path> --out <dir> [--headed]
+fov run --config <path> --out <dir> [--headed] [--advisor on|off]
+fov discover --base <ref> --head <ref> --pr-metadata <path> --out <dir>
+fov pr-eval --config <path> --scenario-file <path> --pr-metadata <path> --out <dir> [--baseline <dir>]
+fov compare --baseline <dir> --candidate <dir> --out <dir>
 ```
+
+### `run` options
 
 | Option | Required | Description |
 |---|---|---|
 | `--config <path>` | Yes | Path to config YAML file |
 | `--out <dir>` | Yes | Output directory for artifacts |
 | `--headed` | No | Run browser in headed mode (for debugging) |
+| `--advisor <on|off>` | No | Enable or disable advisor generation (default: `on`) |
+
+### PR UX Evaluation Flow
+
+1. Generate scenarios from PR context:
+   - `fov discover --base origin/main --head HEAD --pr-metadata ./artifacts/pr.json --out ./artifacts/pr-discovery`
+2. Review `./artifacts/pr-discovery/discovered-scenarios.yml` and set `approved: true` for scenarios to execute.
+3. Add PR label `ux-eval-approved`.
+4. Run approved scenarios:
+   - `fov pr-eval --config ./config/examples/pr-eval-sample.yml --scenario-file ./artifacts/pr-discovery/discovered-scenarios.yml --pr-metadata ./artifacts/pr.json --out ./artifacts/pr-eval`
+
+GitHub Actions workflow (`.github/workflows/pr-ux-eval.yml`) uses the same flow:
+1. Always generate and post scenario preview as a sticky PR comment.
+2. Execute PR evaluation only when label `ux-eval-approved` is present.
+3. Update the same sticky comment with run summary, Advisor Top Suggestions, and artifact references.
 
 ### Exit Codes
 
 | Code | Meaning |
 |---|---|
-| `0` | All gates passed |
-| `1` | One or more gates failed |
+| `0` | Command completed successfully |
+| `1` | Validation failed, gate failed, or execution error |
 
 ## Configuration (YAML)
 
@@ -209,6 +229,10 @@ src/
   runner.ts               # Playwright execution engine
   recording.ts            # rrweb-compatible recorder injection + fake cursor
   metrics.ts              # Metrics extraction + gate evaluation
+  scenario/
+    discovery.ts          # PR diff + metadata based scenario generation
+    derive.ts             # Heuristic scenario proposal derivation
+    pr-context.ts         # PR metadata parsing and approval label checks
   behavior/
     mouse.ts              # Bezier-curve mouse movement, jitter, misclick
     typing.ts             # Human-like typing (typos + backspace correction)
@@ -219,6 +243,9 @@ config/
   examples/
     basic.yml             # Basic config example
     strict-gates.yml      # Strict gates for failure testing
+    pr-eval-sample.yml    # Base config for PR-centric scenario execution
+docs/
+  pr_ux_evaluation_contract.md  # PR UX evaluation scope and approval flow
 examples/
   miniapp/
     index.html            # Sample web app (signup -> dashboard)

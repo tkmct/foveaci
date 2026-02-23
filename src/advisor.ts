@@ -49,6 +49,26 @@ export interface Suggestion {
   implementation?: string;
 }
 
+export interface AdvisorFocusArea {
+  id: string;
+  title: string;
+  entry?: string;
+  tags?: string[];
+  confidence?: number;
+}
+
+export interface PrioritizedSuggestion extends Suggestion {
+  rank: number;
+  priorityScore: number;
+  rationale: string;
+  relatedFocusAreas: string[];
+}
+
+export interface AdvisorOptions {
+  focusAreas?: AdvisorFocusArea[];
+  maxTopSuggestions?: number;
+}
+
 /**
  * How to verify the fix worked
  */
@@ -72,6 +92,10 @@ export interface AdvisorReport {
   findings: Finding[];
   hypotheses: Hypothesis[];
   suggestions: Suggestion[];
+  topSuggestions: PrioritizedSuggestion[];
+  context: {
+    focusAreas: AdvisorFocusArea[];
+  };
   verification: Verification[];
 }
 
@@ -550,17 +574,149 @@ function analyzeSuccessRate(
   });
 }
 
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9/_-]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 3);
+}
+
+function impactWeight(impact: Suggestion["expectedImpact"]): number {
+  switch (impact) {
+    case "high":
+      return 3;
+    case "medium":
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function collectFocusTerms(focusAreas: AdvisorFocusArea[]): Set<string> {
+  const terms = new Set<string>();
+  for (const area of focusAreas) {
+    for (const token of tokenize(area.title)) {
+      terms.add(token);
+    }
+    if (area.entry) {
+      for (const token of tokenize(area.entry.replace(/\//g, " "))) {
+        terms.add(token);
+      }
+    }
+    for (const tag of area.tags || []) {
+      for (const token of tokenize(tag)) {
+        terms.add(token);
+      }
+    }
+  }
+  return terms;
+}
+
+function findingScoreBoost(
+  suggestionText: string,
+  findings: Finding[]
+): { score: number; matches: string[] } {
+  const text = suggestionText.toLowerCase();
+  const activeFindingIds = new Set(findings.map((finding) => finding.id));
+  const matches: string[] = [];
+  let score = 0;
+
+  const rules: Array<{ id: string; terms: string[] }> = [
+    { id: "console-errors", terms: ["error", "console", "boundary"] },
+    { id: "rage-clicks", terms: ["click", "feedback", "interactive"] },
+    { id: "failed-steps", terms: ["selector", "input", "expect", "visibility"] },
+    { id: "slow-tasks", terms: ["slow", "optimize", "performance", "latency"] },
+    { id: "scroll-oscillation", terms: ["scroll", "layout", "discoverability"] },
+    { id: "low-success-rate", terms: ["success", "journey", "failure", "flow"] },
+  ];
+
+  for (const rule of rules) {
+    if (!activeFindingIds.has(rule.id)) continue;
+    if (rule.terms.some((term) => text.includes(term))) {
+      score += 2;
+      matches.push(rule.id);
+    }
+  }
+
+  return { score, matches };
+}
+
+function prioritizeSuggestions(
+  suggestions: Suggestion[],
+  findings: Finding[],
+  focusAreas: AdvisorFocusArea[],
+  maxTopSuggestions: number
+): PrioritizedSuggestion[] {
+  if (suggestions.length === 0) return [];
+
+  const focusTerms = collectFocusTerms(focusAreas);
+
+  const ranked = suggestions
+    .map((suggestion) => {
+      const text = `${suggestion.title} ${suggestion.description} ${suggestion.implementation || ""}`;
+      const tokens = new Set(tokenize(text));
+
+      const matchedFocusTerms: string[] = [];
+      for (const term of focusTerms) {
+        if (tokens.has(term)) {
+          matchedFocusTerms.push(term);
+        }
+      }
+
+      const focusScore = Math.min(matchedFocusTerms.length, 4) * 0.5;
+      const findingBoost = findingScoreBoost(text, findings);
+      const score = impactWeight(suggestion.expectedImpact) + focusScore + findingBoost.score;
+      const relatedFocusAreas = focusAreas
+        .filter((area) => {
+          const areaTokens = new Set(tokenize(`${area.title} ${area.entry || ""} ${(area.tags || []).join(" ")}`));
+          for (const token of areaTokens) {
+            if (tokens.has(token)) return true;
+          }
+          return false;
+        })
+        .map((area) => area.id);
+
+      const rationaleParts = [
+        `impact=${suggestion.expectedImpact}`,
+        `findingMatch=${findingBoost.matches.join(",") || "none"}`,
+        `focusTerms=${matchedFocusTerms.slice(0, 4).join(",") || "none"}`,
+      ];
+
+      return {
+        suggestion,
+        score,
+        rationale: rationaleParts.join("; "),
+        relatedFocusAreas,
+      };
+    })
+    .sort((a, b) => b.score - a.score || a.suggestion.title.localeCompare(b.suggestion.title))
+    .slice(0, maxTopSuggestions)
+    .map((item, index) => ({
+      ...item.suggestion,
+      rank: index + 1,
+      priorityScore: Math.round(item.score * 100) / 100,
+      rationale: item.rationale,
+      relatedFocusAreas: item.relatedFocusAreas,
+    }));
+
+  return ranked;
+}
+
 /**
  * Main function to generate advisor report
  */
 export function generateAdvisorReport(
   sessions: SessionResult[],
-  metrics: RunMetrics
+  metrics: RunMetrics,
+  options?: AdvisorOptions
 ): AdvisorReport {
   const findings: Finding[] = [];
   const hypotheses: Hypothesis[] = [];
   const suggestions: Suggestion[] = [];
   const verifications: Verification[] = [];
+  const focusAreas = options?.focusAreas || [];
+  const maxTopSuggestions = options?.maxTopSuggestions || 3;
 
   // Run all rule-based detectors
   detectRageClickIssues(sessions, findings, hypotheses, suggestions, verifications);
@@ -574,6 +730,12 @@ export function generateAdvisorReport(
   const highSeverityCount = findings.filter((f) => f.severity === "high").length;
   const mediumSeverityCount = findings.filter((f) => f.severity === "medium").length;
   const lowSeverityCount = findings.filter((f) => f.severity === "low").length;
+  const topSuggestions = prioritizeSuggestions(
+    suggestions,
+    findings,
+    focusAreas,
+    maxTopSuggestions
+  );
 
   return {
     timestamp: Date.now(),
@@ -586,6 +748,10 @@ export function generateAdvisorReport(
     findings,
     hypotheses,
     suggestions,
+    topSuggestions,
+    context: {
+      focusAreas,
+    },
     verification: verifications,
   };
 }

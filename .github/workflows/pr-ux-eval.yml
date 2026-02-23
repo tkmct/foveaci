@@ -1,0 +1,135 @@
+name: PR UX Evaluation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-ux-eval-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-ux-eval:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Build PR metadata
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const pr = context.payload.pull_request;
+            const metadata = {
+              number: pr.number,
+              title: pr.title,
+              body: pr.body || "",
+              labels: pr.labels.map((label) => label.name),
+              url: pr.html_url,
+            };
+            fs.mkdirSync("artifacts", { recursive: true });
+            fs.writeFileSync("artifacts/pr.json", JSON.stringify(metadata, null, 2));
+
+      - name: Discover scenarios
+        run: |
+          pnpm fov discover \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --pr-metadata ./artifacts/pr.json \
+            --out ./artifacts/pr-discovery
+
+      - name: Render preview comment
+        run: |
+          node ./scripts/render_pr_summary.mjs \
+            --scenario-file ./artifacts/pr-discovery/discovered-scenarios.yml \
+            --preview-file ./artifacts/pr-discovery/scenario-preview.md \
+            --pr-metadata ./artifacts/pr.json \
+            --output ./artifacts/pr-comment.md
+
+      - name: Post preview comment
+        run: |
+          node ./scripts/post_pr_comment.mjs \
+            --repo "${{ github.repository }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --token "${{ github.token }}" \
+            --body-file ./artifacts/pr-comment.md
+
+      - name: Install Playwright browser
+        if: contains(github.event.pull_request.labels.*.name, 'ux-eval-approved')
+        run: npx playwright install chromium
+
+      - name: Start sample app
+        if: contains(github.event.pull_request.labels.*.name, 'ux-eval-approved')
+        run: npx serve examples/miniapp -p 3456 -s >/tmp/fov-miniapp.log 2>&1 &
+
+      - name: Approve scenarios for execution
+        if: contains(github.event.pull_request.labels.*.name, 'ux-eval-approved')
+        run: |
+          node ./scripts/approve_scenarios.mjs \
+            --input ./artifacts/pr-discovery/discovered-scenarios.yml \
+            --output ./artifacts/pr-discovery/approved-scenarios.yml \
+            --min-confidence 0.45
+
+      - name: Run PR evaluation
+        if: contains(github.event.pull_request.labels.*.name, 'ux-eval-approved')
+        run: |
+          pnpm fov pr-eval \
+            --config ./config/examples/basic.yml \
+            --scenario-file ./artifacts/pr-discovery/approved-scenarios.yml \
+            --pr-metadata ./artifacts/pr.json \
+            --out ./artifacts/pr-eval \
+            --advisor on \
+            --skip-label-check
+
+      - name: Render result comment
+        if: contains(github.event.pull_request.labels.*.name, 'ux-eval-approved')
+        run: |
+          node ./scripts/render_pr_summary.mjs \
+            --scenario-file ./artifacts/pr-discovery/approved-scenarios.yml \
+            --preview-file ./artifacts/pr-discovery/scenario-preview.md \
+            --pr-metadata ./artifacts/pr.json \
+            --candidate-dir ./artifacts/pr-eval \
+            --output ./artifacts/pr-comment.md
+
+      - name: Post result comment
+        if: contains(github.event.pull_request.labels.*.name, 'ux-eval-approved')
+        run: |
+          node ./scripts/post_pr_comment.mjs \
+            --repo "${{ github.repository }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --token "${{ github.token }}" \
+            --body-file ./artifacts/pr-comment.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-ux-eval-${{ github.event.pull_request.number }}
+          path: ./artifacts
+
