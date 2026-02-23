@@ -9,7 +9,10 @@
   "scripts": {
     "build:report-ui": "cd report-ui && npm install && npm run build && cp -r dist/* ../src/report/static/",
     "build": "npm run build:report-ui && tsc && rm -rf dist/src/report/static && cp -r src/report/static dist/src/report/static",
-    "fov": "node ./dist/bin/fov.js"
+    "ensure:dist": "test -f ./dist/bin/fov.js || bun run build",
+    "fov": "bun run ensure:dist && node ./dist/bin/fov.js",
+    "serve-report": "bun run fov -- serve-report",
+    "serve-report:artifact": "bash -lc 'REPORT_DIR=$(find ./downloaded -type d -path \"*/artifacts/pr-eval/report\" | head -n 1); if [ -z \"$REPORT_DIR\" ]; then echo \"report directory not found under ./downloaded\"; exit 1; fi; bun run serve-report -- --dir \"$REPORT_DIR\" --port 4173'"
   },
   "dependencies": {
     "commander": "^12.1.0",

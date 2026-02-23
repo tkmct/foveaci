@@ -91,7 +91,13 @@ To view replay reports from downloaded artifacts on localhost:
 
 ```bash
 # from foveaci repo
-node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173
+# requires Bun
+# dist/ is built automatically when missing
+# (use this when you know the exact extracted path)
+bun run serve-report -- --dir ./downloaded/home/runner/work/fovea-app/fovea-app/artifacts/pr-eval/report --port 4173
+
+# or auto-detect report directory under ./downloaded
+bun run serve-report:artifact
 
 # then open
 http://localhost:4173/index.html
