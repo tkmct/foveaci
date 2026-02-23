@@ -70,6 +70,9 @@ jobs:
             --scenario-file ./artifacts/pr-discovery/discovered-scenarios.yml \
             --preview-file ./artifacts/pr-discovery/scenario-preview.md \
             --pr-metadata ./artifacts/pr.json \
+            --artifact-name "pr-ux-eval-${{ github.event.pull_request.number }}" \
+            --local-serve-cmd "node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173" \
+            --local-open-cmd "http://localhost:4173/index.html" \
             --output ./artifacts/pr-comment.md
 
       - name: Post preview comment
@@ -115,6 +118,9 @@ jobs:
             --preview-file ./artifacts/pr-discovery/scenario-preview.md \
             --pr-metadata ./artifacts/pr.json \
             --candidate-dir ./artifacts/pr-eval \
+            --artifact-name "pr-ux-eval-${{ github.event.pull_request.number }}" \
+            --local-serve-cmd "node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173" \
+            --local-open-cmd "http://localhost:4173/index.html" \
             --output ./artifacts/pr-comment.md
 
       - name: Post result comment
@@ -132,4 +138,3 @@ jobs:
         with:
           name: pr-ux-eval-${{ github.event.pull_request.number }}
           path: ./artifacts
-

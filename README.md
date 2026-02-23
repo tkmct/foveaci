@@ -59,6 +59,7 @@ fov run --config <path> --out <dir> [--headed] [--advisor on|off]
 fov discover --base <ref> --head <ref> --pr-metadata <path> --out <dir>
 fov pr-eval --config <path> --scenario-file <path> --pr-metadata <path> --out <dir> [--baseline <dir>]
 fov compare --baseline <dir> --candidate <dir> --out <dir>
+fov serve-report --dir <path> [--host 127.0.0.1] [--port 4173]
 ```
 
 ### `run` options
@@ -83,6 +84,18 @@ GitHub Actions workflow (`.github/workflows/pr-ux-eval.yml`) uses the same flow:
 1. Always generate and post scenario preview as a sticky PR comment.
 2. Execute PR evaluation only when label `ux-eval-approved` is present.
 3. Update the same sticky comment with run summary, Advisor Top Suggestions, and artifact references.
+
+### Localhost Replay Hosting
+
+To view replay reports from downloaded artifacts on localhost:
+
+```bash
+# from foveaci repo
+node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173
+
+# then open
+http://localhost:4173/index.html
+```
 
 ### Exit Codes
 

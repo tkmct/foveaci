@@ -13,6 +13,7 @@ import {
 } from "../src/advisor.js";
 import { loadRunMetrics, computeDiff, type DiffResult } from "../src/diff.js";
 import { generateDiffReport } from "../src/report/diff-report.js";
+import { serveReport } from "../src/report/server.js";
 import {
   discoverScenarios,
   loadScenarioDiscoveryFile,
@@ -159,6 +160,41 @@ function toFocusAreas(scenarios: ScenarioProposal[]): AdvisorFocusArea[] {
 }
 
 program.name("fov").description("Synthetic User Swarm FoveaCI Tool").version("0.1.0");
+
+program
+  .command("serve-report")
+  .description("Serve report directory locally for replay viewing")
+  .requiredOption("--dir <path>", "Path to report directory")
+  .option("--host <host>", "Host to bind", "127.0.0.1")
+  .option("--port <port>", "Port to bind", "4173")
+  .action(
+    async (opts: { dir: string; host: string; port: string }) => {
+      const host = opts.host || "127.0.0.1";
+      const port = parseInt(opts.port, 10);
+      if (Number.isNaN(port) || port <= 0) {
+        throw new Error(`Invalid port: ${opts.port}`);
+      }
+
+      const server = await serveReport({
+        dir: opts.dir,
+        host,
+        port,
+      });
+      const openUrl = `http://${host}:${port}/index.html`;
+      console.log(`[fov] Serving report from ${path.resolve(opts.dir)}`);
+      console.log(`[fov] Open: ${openUrl}`);
+      console.log("[fov] Press Ctrl+C to stop.");
+
+      const shutdown = () => {
+        server.close(() => process.exit(0));
+      };
+      process.on("SIGINT", shutdown);
+      process.on("SIGTERM", shutdown);
+      await new Promise<void>(() => {
+        // Keep process running until signal.
+      });
+    }
+  );
 
 program
   .command("run")

@@ -45,10 +45,13 @@ const prMetadataFile = args["pr-metadata"];
 const candidateDir = args["candidate-dir"];
 const diffDir = args["diff-dir"];
 const previewFile = args["preview-file"];
+const artifactName = args["artifact-name"];
+const localServeCmd = args["local-serve-cmd"];
+const localOpenCmd = args["local-open-cmd"] || "http://localhost:4173/index.html";
 
 if (!scenarioFile || !outputFile) {
   console.error(
-    "Usage: node scripts/render_pr_summary.mjs --scenario-file <file.yml> --output <comment.md> [--pr-metadata <pr.json>] [--candidate-dir <dir>] [--diff-dir <dir>] [--preview-file <file>]"
+    "Usage: node scripts/render_pr_summary.mjs --scenario-file <file.yml> --output <comment.md> [--pr-metadata <pr.json>] [--candidate-dir <dir>] [--diff-dir <dir>] [--preview-file <file>] [--artifact-name <name>] [--local-serve-cmd <cmd>] [--local-open-cmd <url>]"
   );
   process.exit(1);
 }
@@ -141,6 +144,9 @@ lines.push("");
 
 lines.push("### Artifacts");
 lines.push("");
+if (artifactName) {
+  lines.push(`- Artifact name: \`${artifactName}\``);
+}
 lines.push(`- Scenario file: \`${relPath(scenarioFile)}\``);
 if (previewFile) {
   lines.push(`- Preview: \`${relPath(previewFile)}\``);
@@ -152,6 +158,24 @@ if (diffDir) {
   lines.push(`- Diff report: \`${relPath(diffDir)}\``);
 }
 lines.push("");
+
+if (artifactName || localServeCmd) {
+  lines.push("### Open Replay Locally");
+  lines.push("");
+  lines.push("1. Download and extract the workflow artifact.");
+  if (artifactName) {
+    lines.push(`2. Use artifact: \`${artifactName}\``);
+  }
+  if (localServeCmd) {
+    lines.push(`3. Run local server: \`${localServeCmd}\``);
+  } else {
+    lines.push("3. Run local server from foveaci repo:");
+    lines.push("   `node ./dist/bin/fov.js serve-report --dir ./artifacts/pr-eval/report --port 4173`");
+  }
+  lines.push(`4. Open replay UI: \`${localOpenCmd}\``);
+  lines.push("");
+}
+
 lines.push(`_Updated: ${new Date().toISOString()}_`);
 lines.push("");
 
