@@ -75,14 +75,16 @@ fov serve-report --dir <path> [--host 127.0.0.1] [--port 4173]
 
 1. Generate scenarios from PR context:
    - `fov discover --base origin/main --head HEAD --pr-metadata ./artifacts/pr.json --out ./artifacts/pr-discovery`
-2. Review `./artifacts/pr-discovery/discovered-scenarios.yml` and set `approved: true` for scenarios to execute.
-3. Add PR label `ux-eval-approved`.
-4. Run approved scenarios:
-   - `fov pr-eval --config ./config/examples/pr-eval-sample.yml --scenario-file ./artifacts/pr-discovery/discovered-scenarios.yml --pr-metadata ./artifacts/pr.json --out ./artifacts/pr-eval`
+2. Review generated scenarios in sticky PR comment.
+3. Add `+1` reaction to the latest FoveaCI preview comment (write+ repository permission).
+4. Prepare executable scenarios with confidence/source filters:
+   - `node ./scripts/approve_scenarios.mjs --input ./artifacts/pr-discovery/discovered-scenarios.yml --output ./artifacts/pr-discovery/approved-scenarios.yml --min-confidence 0.6 --require-any-source code,docs`
+5. Run approved scenarios:
+   - `fov pr-eval --config ./config/examples/pr-eval-sample.yml --scenario-file ./artifacts/pr-discovery/approved-scenarios.yml --pr-metadata ./artifacts/pr.json --out ./artifacts/pr-eval --skip-label-check`
 
-GitHub Actions workflow (`.github/workflows/pr-ux-eval.yml`) uses the same flow:
+GitHub Actions PR UX workflow should follow the same flow:
 1. Always generate and post scenario preview as a sticky PR comment.
-2. Execute PR evaluation only when label `ux-eval-approved` is present.
+2. Execute PR evaluation only when a valid `+1` reaction approval exists.
 3. Update the same sticky comment with run summary, Advisor Top Suggestions, and artifact references.
 
 ### Localhost Replay Hosting
@@ -124,6 +126,7 @@ run:
   trace: false               # Playwright trace
   concurrency: 1             # TODO: parallel session count
   timeoutMs: 60000
+  continueOnError: false     # Stop task execution at first failed step
 
 recording:
   rrweb: true                # rrweb-compatible recording
@@ -251,7 +254,7 @@ src/
   scenario/
     discovery.ts          # PR diff + metadata based scenario generation
     derive.ts             # Heuristic scenario proposal derivation
-    pr-context.ts         # PR metadata parsing and approval label checks
+    pr-context.ts         # PR metadata parsing and approval checks
   behavior/
     mouse.ts              # Bezier-curve mouse movement, jitter, misclick
     typing.ts             # Human-like typing (typos + backspace correction)

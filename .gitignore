@@ -4,3 +4,4 @@ artifacts/
 *.tsbuildinfo
 report-ui/dist/
 report-ui/node_modules/
+downloaded

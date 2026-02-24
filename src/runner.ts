@@ -90,6 +90,7 @@ async function executeStep(
   step: TaskStep,
   persona: PersonaConfig,
   runId: string,
+  baseUrl: string,
   clickTracker: ClickTracker,
   mousePos: MousePos,
   rng: () => number
@@ -98,7 +99,8 @@ async function executeStep(
   try {
     switch (step.kind) {
       case "goto": {
-        const url = step.url || step.value || "/";
+        const rawUrl = step.url || step.value || "/";
+        const url = new URL(rawUrl, baseUrl).href;
         await page.goto(url, { waitUntil: "domcontentloaded" });
         return { kind: "goto", success: true, timeMs: Date.now() - start };
       }
@@ -265,13 +267,13 @@ async function runSession(
   // Capture console errors
   page.on("console", (msg) => {
     if (msg.type() === "error") {
-      errors.push(maskSensitive(msg.text()));
+      errors.push(`[console] ${maskSensitive(msg.text())}`);
     }
   });
 
   // Capture page errors
   page.on("pageerror", (err) => {
-    errors.push(maskSensitive(err.message));
+    errors.push(`[pageerror] ${maskSensitive(err.message)}`);
   });
 
   const clickTracker: ClickTracker = {
@@ -310,19 +312,32 @@ async function runSession(
           : 300 + rng() * 500) / persona.speed;
       await page.waitForTimeout(hesitation);
 
-      const result = await executeStep(page, step, persona, runId, clickTracker, mousePos, rng);
+      const result = await executeStep(
+        page,
+        step,
+        persona,
+        runId,
+        config.project.baseUrl,
+        clickTracker,
+        mousePos,
+        rng
+      );
       stepResults.push(result);
 
       if (!result.success) {
         success = false;
-        if (result.error) errors.push(result.error);
-        // Continue executing remaining steps even on failure (for recording)
+        if (result.error) {
+          errors.push(`[step:${result.kind}] ${result.error}`);
+        }
+        if (!config.run.continueOnError) {
+          break;
+        }
       }
     }
   } catch (err) {
     success = false;
     const errorMsg = err instanceof Error ? err.message : String(err);
-    errors.push(maskSensitive(errorMsg));
+    errors.push(`[runtime] ${maskSensitive(errorMsg)}`);
   }
 
   const endTime = Date.now();

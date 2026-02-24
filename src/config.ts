@@ -14,6 +14,7 @@ export interface RunConfig {
   trace: boolean;
   concurrency: number;
   timeoutMs: number;
+  continueOnError: boolean;
   seed?: number;
 }
 
@@ -78,6 +79,7 @@ const DEFAULTS: Partial<FovConfig> = {
     trace: false,
     concurrency: 4,
     timeoutMs: 180000,
+    continueOnError: false,
   },
   recording: {
     rrweb: true,

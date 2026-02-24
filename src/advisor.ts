@@ -204,47 +204,115 @@ function detectErrorIssues(
 
   const errorSessions = sessions.filter((s) => s.errors.length > 0);
   const consoleErrors = new Set<string>();
+  const navigationErrors = new Set<string>();
+  const otherExecutionErrors = new Set<string>();
+  const consoleEvidence: Evidence[] = [];
+  const navigationEvidence: Evidence[] = [];
+  const executionEvidence: Evidence[] = [];
 
   for (const session of errorSessions) {
     for (const error of session.errors) {
-      consoleErrors.add(error);
+      if (error.startsWith("[console]")) {
+        consoleErrors.add(error);
+        if (consoleEvidence.length < 5) {
+          consoleEvidence.push({
+            sessionId: session.sessionId,
+            description: error,
+          });
+        }
+        continue;
+      }
+
+      if (error.startsWith("[step:goto]")) {
+        navigationErrors.add(error);
+        if (navigationEvidence.length < 5) {
+          navigationEvidence.push({
+            sessionId: session.sessionId,
+            description: error,
+          });
+        }
+        continue;
+      }
+
+      otherExecutionErrors.add(error);
+      if (executionEvidence.length < 5) {
+        executionEvidence.push({
+          sessionId: session.sessionId,
+          description: error,
+        });
+      }
     }
   }
 
   const severity: "high" | "medium" | "low" =
     metrics.errorRate > 2 ? "high" : metrics.errorRate > 1 ? "medium" : "low";
 
-  findings.push({
-    id: "console-errors",
-    title: "Console Errors Detected",
-    description: `${metrics.totalErrors} console error(s) occurred across ${errorSessions.length} session(s). Error rate: ${metrics.errorRate.toFixed(2)} errors per session. Unique errors: ${consoleErrors.size}`,
-    evidence: errorSessions.slice(0, 5).map((s) => ({
-      sessionId: s.sessionId,
-      description: `${s.errors.length} error(s): ${s.errors.slice(0, 2).join("; ")}${s.errors.length > 2 ? "..." : ""}`,
-    })),
-    severity,
-  });
+  if (consoleErrors.size > 0) {
+    findings.push({
+      id: "console-errors",
+      title: "Console Errors Detected",
+      description: `${consoleErrors.size} unique console error(s) occurred across ${errorSessions.length} session(s).`,
+      evidence: consoleEvidence,
+      severity,
+    });
 
-  hypotheses.push({
-    category: "error",
-    description:
-      "JavaScript errors are occurring during task execution, which may indicate broken functionality, missing error handling, or compatibility issues.",
-    confidence: "high",
-  });
+    hypotheses.push({
+      category: "error",
+      description:
+        "JavaScript console errors are occurring during task execution, which may indicate broken functionality or missing error handling.",
+      confidence: "high",
+    });
 
-  suggestions.push({
-    title: "Fix Console Errors",
-    description: `Review and fix the ${consoleErrors.size} unique console error(s). These errors may be preventing proper functionality or degrading user experience.`,
-    expectedImpact: severity === "high" ? "high" : "medium",
-    implementation:
-      "Check browser console during manual testing, add error boundaries, implement proper null checks and error handling.",
-  });
+    suggestions.push({
+      title: "Fix Console Errors",
+      description: `Review and fix the ${consoleErrors.size} unique console error(s). These errors may be preventing proper functionality or degrading user experience.`,
+      expectedImpact: severity === "high" ? "high" : "medium",
+      implementation:
+        "Check browser console during manual testing, add error boundaries, implement proper null checks and error handling.",
+    });
 
-  verifications.push({
-    method: "Re-run sessions and monitor console logs",
-    expectedOutcome: "Zero console errors in all sessions",
-    metrics: ["totalErrors", "errorRate"],
-  });
+    verifications.push({
+      method: "Re-run sessions and monitor console logs",
+      expectedOutcome: "Zero console errors in all sessions",
+      metrics: ["totalErrors", "errorRate"],
+    });
+  }
+
+  if (navigationErrors.size > 0) {
+    findings.push({
+      id: "navigation-errors",
+      title: "Navigation Errors Detected",
+      description: `${navigationErrors.size} navigation failure(s) occurred (for example invalid or unreachable URLs).`,
+      evidence: navigationEvidence,
+      severity: navigationErrors.size >= 2 ? "high" : "medium",
+    });
+
+    hypotheses.push({
+      category: "other",
+      description:
+        "Navigation targets are invalid or not resolvable in the execution context. This usually indicates malformed URLs or incorrect route assumptions.",
+      confidence: "high",
+    });
+
+    suggestions.push({
+      title: "Fix Invalid Navigation Targets",
+      description:
+        "Normalize navigation URLs against project.baseUrl and validate that generated routes are reachable in the app under test.",
+      expectedImpact: "high",
+      implementation:
+        "Resolve relative URLs with URL(baseUrl), remove duplicated goto steps, and add route validation in scenario generation.",
+    });
+  }
+
+  if (otherExecutionErrors.size > 0) {
+    findings.push({
+      id: "execution-errors",
+      title: "Execution Errors Detected",
+      description: `${otherExecutionErrors.size} non-console execution error(s) occurred across sessions.`,
+      evidence: executionEvidence,
+      severity: otherExecutionErrors.size > 3 ? "high" : "medium",
+    });
+  }
 }
 
 /**
@@ -624,6 +692,8 @@ function findingScoreBoost(
 
   const rules: Array<{ id: string; terms: string[] }> = [
     { id: "console-errors", terms: ["error", "console", "boundary"] },
+    { id: "navigation-errors", terms: ["navigation", "url", "route", "goto"] },
+    { id: "execution-errors", terms: ["error", "failure", "exception"] },
     { id: "rage-clicks", terms: ["click", "feedback", "interactive"] },
     { id: "failed-steps", terms: ["selector", "input", "expect", "visibility"] },
     { id: "slow-tasks", terms: ["slow", "optimize", "performance", "latency"] },

@@ -83,10 +83,11 @@ function previewMarkdown(doc: ScenarioDiscoveryOutput): string {
   lines.push("");
   lines.push("## Review and Approval Flow");
   lines.push("");
-  lines.push("1. Review `discovered-scenarios.yml` and set `approved: true` only for scenarios you want to execute.");
-  lines.push("2. Add PR label `ux-eval-approved` after scenario review is complete.");
+  lines.push("1. Review `discovered-scenarios.yml` and the sticky preview comment.");
+  lines.push("2. Add `+1` reaction on the latest FoveaCI preview comment to approve execution.");
+  lines.push("3. Generate approved scenarios with confidence/source filters.");
   lines.push(
-    "3. Run: `fov pr-eval --config <config.yml> --scenario-file <discovered-scenarios.yml> --pr-metadata <pr.json> --out <dir>`"
+    "4. Run: `fov pr-eval --config <config.yml> --scenario-file <approved-scenarios.yml> --pr-metadata <pr.json> --out <dir> --skip-label-check`"
   );
   lines.push("");
   lines.push("## Input Sources");
@@ -122,4 +123,3 @@ export function loadScenarioDiscoveryFile(
   }
   return parsed;
 }
-

@@ -48,10 +48,13 @@ const previewFile = args["preview-file"];
 const artifactName = args["artifact-name"];
 const localServeCmd = args["local-serve-cmd"];
 const localOpenCmd = args["local-open-cmd"] || "http://localhost:4173/index.html";
+const approvalMode = args["approval-mode"] || "label";
+const approvalReaction = args["approval-reaction"] || "+1";
+const approvalMinPermission = args["approval-min-permission"] || "write";
 
 if (!scenarioFile || !outputFile) {
   console.error(
-    "Usage: node scripts/render_pr_summary.mjs --scenario-file <file.yml> --output <comment.md> [--pr-metadata <pr.json>] [--candidate-dir <dir>] [--diff-dir <dir>] [--preview-file <file>] [--artifact-name <name>] [--local-serve-cmd <cmd>] [--local-open-cmd <url>]"
+    "Usage: node scripts/render_pr_summary.mjs --scenario-file <file.yml> --output <comment.md> [--pr-metadata <pr.json>] [--candidate-dir <dir>] [--diff-dir <dir>] [--preview-file <file>] [--artifact-name <name>] [--local-serve-cmd <cmd>] [--local-open-cmd <url>] [--approval-mode label|reaction]"
   );
   process.exit(1);
 }
@@ -83,7 +86,13 @@ if (pr) {
 }
 lines.push(`- Status: **${status}**`);
 lines.push(`- Scenarios: ${approvedCount}/${scenariosDoc.scenarios.length} approved`);
-lines.push("- Approval label: `ux-eval-approved`");
+if (approvalMode === "reaction") {
+  lines.push(
+    `- Approval reaction: \`${approvalReaction}\` on the latest FoveaCI preview comment (\`${approvalMinPermission}+\` permission required)`
+  );
+} else {
+  lines.push("- Approval label: `ux-eval-approved`");
+}
 lines.push("");
 
 lines.push("### Proposed Scenarios");
@@ -138,8 +147,13 @@ if (diffReport && diffReport.kind === "diff") {
 lines.push("### Review Flow");
 lines.push("");
 lines.push("1. Confirm proposed scenarios match the feature changes in this PR.");
-lines.push("2. Add PR label `ux-eval-approved` to approve execution.");
-lines.push("3. Workflow executes approved scenarios and updates this comment.");
+if (approvalMode === "reaction") {
+  lines.push(`2. Add reaction \`${approvalReaction}\` to this preview comment to approve execution.`);
+  lines.push("3. Scheduled workflow detects approval and executes approved scenarios.");
+} else {
+  lines.push("2. Add PR label `ux-eval-approved` to approve execution.");
+  lines.push("3. Workflow executes approved scenarios and updates this comment.");
+}
 lines.push("");
 
 lines.push("### Artifacts");

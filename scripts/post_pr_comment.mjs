@@ -66,7 +66,9 @@ const comments = await githubRequest(
   `/repos/${owner}/${repoName}/issues/${prNumber}/comments?per_page=100`,
   token
 );
-const existing = comments.find((comment) => typeof comment.body === "string" && comment.body.includes(marker));
+const existing = comments
+  .filter((comment) => typeof comment.body === "string" && comment.body.includes(marker))
+  .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
 
 if (existing) {
   await githubRequest(
@@ -85,4 +87,3 @@ if (existing) {
   );
   console.log(`[fov] Created sticky comment (${created.id}) on PR #${prNumber}`);
 }
-

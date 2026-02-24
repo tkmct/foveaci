@@ -6,14 +6,23 @@ function uniqueSourceTypes(sources: ScenarioSource[]): Set<string> {
 
 export function scoreScenarioConfidence(sources: ScenarioSource[]): number {
   const sourceTypes = uniqueSourceTypes(sources);
-  let score = 0.35;
+  const hasCode = sourceTypes.has("code");
+  const hasDocs = sourceTypes.has("docs");
+  const hasPr = sourceTypes.has("pr");
+  let score = 0.15;
 
-  if (sourceTypes.has("code")) score += 0.25;
-  if (sourceTypes.has("pr")) score += 0.2;
-  if (sourceTypes.has("docs")) score += 0.2;
+  if (hasCode) score += 0.4;
+  if (hasDocs) score += 0.35;
+  if (hasPr) score += 0.1;
 
-  if (sources.length >= 4) score += 0.05;
+  // Boost scenarios supported by both implementation and docs.
+  if (hasCode && hasDocs) score += 0.1;
+  if (sources.length >= 3) score += 0.05;
+
+  // PR-only scenarios are too weak for auto-approval.
+  if (!hasCode && !hasDocs && hasPr) {
+    score = Math.min(score, 0.35);
+  }
 
   return Math.max(0.05, Math.min(0.95, Math.round(score * 100) / 100));
 }
-

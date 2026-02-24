@@ -249,13 +249,13 @@ program
     console.log(`[fov] Scenario file: ${artifacts.scenarioFile}`);
     console.log(`[fov] Preview file: ${artifacts.previewFile}`);
     console.log(
-      `[fov] Approval flow: review scenarios, set approved=true, then add PR label '${APPROVAL_LABEL}'`
+      "[fov] Approval flow: review preview comment, approve scenarios, then add +1 reaction to latest FoveaCI preview comment"
     );
   });
 
 program
   .command("pr-eval")
-  .description("Run approved PR scenarios after ux-eval-approved label is present")
+  .description("Run approved PR scenarios")
   .requiredOption("--config <path>", "Path to base config YAML")
   .requiredOption("--scenario-file <path>", "Path to discovered-scenarios.yml")
   .requiredOption("--pr-metadata <path>", "Path to PR metadata JSON")
@@ -263,7 +263,11 @@ program
   .option("--baseline <dir>", "Optional baseline run directory for diff report")
   .option("--headed", "Run in headed mode", false)
   .option("--advisor <on|off>", "Enable/disable advisor report", "on")
-  .option("--skip-label-check", "Run even without approval label", false)
+  .option(
+    "--skip-label-check",
+    "Skip PR label gate (useful for reaction-based approval workflows)",
+    false
+  )
   .action(
     async (opts: {
       config: string;
@@ -280,7 +284,7 @@ program
 
       if (!opts.skipLabelCheck && !hasApprovalLabel(pr, APPROVAL_LABEL)) {
         throw new Error(
-          `PR label '${APPROVAL_LABEL}' is required before execution. Use --skip-label-check for local dry runs.`
+          `PR label gate '${APPROVAL_LABEL}' is not satisfied. Use --skip-label-check when approval is handled outside labels.`
         );
       }
 
